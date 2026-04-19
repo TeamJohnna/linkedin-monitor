@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "framework": null,
   "functions": {
     "server.js": {
       "memory": 3008,
@@ -8,8 +7,7 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/server.js" },
-    { "source": "/(.*)", "destination": "/public/$1" }
+    { "source": "/api/(.*)", "destination": "/server.js" }
   ],
   "crons": [
     {
