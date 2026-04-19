@@ -6,8 +6,10 @@
       "maxDuration": 60
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/server.js" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "/server.js" },
+    { "src": "/(.*)", "dest": "/server.js" }
   ],
   "crons": [
     {
