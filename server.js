@@ -9,10 +9,12 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-const DATA_FILE = path.join('/tmp', 'data.json'); // Use /tmp for temporary writing
+// Vercel /tmp is the only writable directory
+const DATA_FILE = path.join('/tmp', 'data.json'); 
 const KEYWORDS = ['hris', 'payroll system', 'managed services', 'payroll outsourcing', 'sprout solutions'];
 
-// Initialize data in the writable /tmp directory
+// --- Helper Functions ---
+
 function initializeDataFile() {
   if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify({ accounts: [], notifiedPosts: [] }, null, 2));
@@ -31,12 +33,40 @@ function writeData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
+// Fixed: Added back the missing email function
+async function sendNotification(gmailAddress, appPassword, accountEmail, post) {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: gmailAddress, pass: appPassword }
+    });
+    
+    const emailContent = `
+      <h2>LinkedIn Post Alert</h2>
+      <p><strong>Account:</strong> ${accountEmail}</p>
+      <p><strong>Matched Keywords:</strong> ${post.matchedKeywords.join(', ')}</p>
+      <hr>
+      <p>${post.content.substring(0, 500)}...</p>
+      <p><a href="${post.url}" target="_blank">View on LinkedIn</a></p>
+    `;
+
+    await transporter.sendMail({
+      from: gmailAddress,
+      to: gmailAddress,
+      subject: `LinkedIn Alert: ${post.matchedKeywords.join(', ')}`,
+      html: emailContent
+    });
+    console.log(`Email sent for post by ${post.author}`);
+  } catch (error) {
+    console.error('Email Error:', error);
+  }
+}
+
 async function monitorLinkedInAccount(account) {
   let browser;
   try {
-    // Vercel-specific Browser Launch
     browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, '--hide-scrollbars', '--disable-web-security'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
@@ -44,9 +74,8 @@ async function monitorLinkedInAccount(account) {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 800 });
-
     await page.goto('https://linkedin.com', { waitUntil: 'networkidle2' });
+    
     await page.type('input[name="session_key"]', account.linkedinEmail);
     await page.type('input[name="session_password"]', account.linkedinPassword);
     await page.click('button[type="submit"]');
@@ -72,7 +101,8 @@ async function monitorLinkedInAccount(account) {
 
       const matched = KEYWORDS.filter(k => post.content.toLowerCase().includes(k.toLowerCase()));
       if (matched.length > 0) {
-        // Send Email logic (omitted for brevity, keep your original sendNotification here)
+        post.matchedKeywords = matched;
+        await sendNotification(account.notificationEmail, account.appPassword, account.linkedinEmail, post);
         data.notifiedPosts.push(postKey);
         writeData(data);
       }
@@ -84,7 +114,18 @@ async function monitorLinkedInAccount(account) {
   }
 }
 
-// Routes
+// --- API Routes ---
+
+app.get('/api/accounts', (req, res) => res.json(readData().accounts));
+
+app.post('/api/accounts', (req, res) => {
+  const data = readData();
+  const newAccount = { ...req.body, id: Date.now().toString(), enabled: true };
+  data.accounts.push(newAccount);
+  writeData(data);
+  res.json({ message: 'Added', id: newAccount.id });
+});
+
 app.post('/api/monitor-now', async (req, res) => {
   const data = readData();
   for (const account of data.accounts) {
@@ -93,7 +134,5 @@ app.post('/api/monitor-now', async (req, res) => {
   res.json({ message: 'Monitoring check completed' });
 });
 
-// Other API routes (accounts CRUD) remain the same...
-
 initializeDataFile();
-module.exports = app; // Export for Vercel
+module.exports = app;
