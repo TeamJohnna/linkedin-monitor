@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm install",
-  "framework": "nodejs",
+  "framework": null,
   "functions": {
     "server.js": {
       "memory": 3008,
