@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install",
+  "version": 2,
   "framework": null,
   "functions": {
     "server.js": {
@@ -7,7 +7,14 @@
       "maxDuration": 60
     }
   },
-  "env": {
-    "NODE_ENV": "production"
-  }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/server.js" },
+    { "source": "/(.*)", "destination": "/public/$1" }
+  ],
+  "crons": [
+    {
+      "path": "/api/monitor-now",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }
